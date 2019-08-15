@@ -264,6 +264,10 @@ class AttGAN(object):
         dis_trainer = DTrainer(image_real, label_org, label_org_, label_trg,
                                label_trg_, self.cfg, self.batch_num)
 
+        # print model
+        print(gen_trainer.program)
+        print(dis_trainer.program)
+
         # prepare environment
         place = fluid.CUDAPlace(0) if self.cfg.use_gpu else fluid.CPUPlace()
         exe = fluid.Executor(place)
@@ -288,6 +292,8 @@ class AttGAN(object):
                 build_strategy=build_strategy)
 
         t_time = 0
+        batch_time = 0
+        whole_batch_time = 0
 
         for epoch_id in range(self.cfg.epoch):
             batch_id = 0
@@ -316,33 +322,23 @@ class AttGAN(object):
                 label_shape = tensor_label_trg.shape
                 s_time = time.time()
                 # optimize the discriminator network
-                if (batch_id + 1) % self.cfg.num_discriminator_time != 0:
-                    fetches = [
-                        dis_trainer.d_loss.name, dis_trainer.d_loss_real.name,
-                        dis_trainer.d_loss_fake.name,
-                        dis_trainer.d_loss_cls.name, dis_trainer.d_loss_gp.name
-                    ]
-                    d_loss, d_loss_real, d_loss_fake, d_loss_cls, d_loss_gp = exe.run(
-                        dis_trainer_program,
-                        fetch_list=fetches,
-                        feed={
-                            "image_real": tensor_img,
-                            "label_org": tensor_label_org,
-                            "label_org_": tensor_label_org_,
-                            "label_trg": tensor_label_trg,
-                            "label_trg_": tensor_label_trg_
-                        })
-
-                    batch_time = time.time() - s_time
-                    t_time += batch_time
-                    print("epoch{}: batch{}:  \n\
-                         d_loss: {}; d_loss_real: {}; d_loss_fake: {}; d_loss_cls: {}; d_loss_gp: {} \n\
-                         Batch_time_cost: {:.2f}"
-                          .format(epoch_id, batch_id, d_loss[0], d_loss_real[
-                              0], d_loss_fake[0], d_loss_cls[0], d_loss_gp[0],
-                                  batch_time))
+                fetches = [
+                    dis_trainer.d_loss.name, dis_trainer.d_loss_real.name,
+                    dis_trainer.d_loss_fake.name,
+                    dis_trainer.d_loss_cls.name, dis_trainer.d_loss_gp.name
+                ]
+                d_loss, d_loss_real, d_loss_fake, d_loss_cls, d_loss_gp = exe.run(
+                    dis_trainer_program,
+                    fetch_list=fetches,
+                    feed={
+                        "image_real": tensor_img,
+                        "label_org": tensor_label_org,
+                        "label_org_": tensor_label_org_,
+                        "label_trg": tensor_label_trg,
+                        "label_trg_": tensor_label_trg_
+                    })
                 # optimize the generator network
-                else:
+                if (batch_id + 1) % self.cfg.num_discriminator_time == 0:
                     d_fetches = [
                         gen_trainer.g_loss_fake.name,
                         gen_trainer.g_loss_rec.name,
@@ -362,6 +358,19 @@ class AttGAN(object):
                          g_loss_fake: {}; g_loss_rec: {}; g_loss_cls: {}"
                           .format(epoch_id, batch_id, g_loss_fake[0],
                                   g_loss_rec[0], g_loss_cls[0]))
+
+                batch_time += time.time() - s_time
+                if (batch_id + 1) % self.cfg.num_discriminator_time == 0:
+                    t_time += batch_time
+                    whole_batch_time = batch_time
+                    batch_time = 0
+                if (batch_id + 1) % self.cfg.print_freq == 0:
+                    print("epoch{}: batch{}:  \n\
+                         d_loss: {}; d_loss_real: {}; d_loss_fake: {}; d_loss_cls: {}; d_loss_gp: {} \n\
+                         Batch_time_cost: {:.3f}"
+                          .format(epoch_id, batch_id, d_loss[0], d_loss_real[
+                              0], d_loss_fake[0], d_loss_cls[0], d_loss_gp[0],
+                                  whole_batch_time))
                 sys.stdout.flush()
                 batch_id += 1
 

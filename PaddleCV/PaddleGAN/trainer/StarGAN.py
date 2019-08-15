@@ -284,6 +284,10 @@ class StarGAN(object):
         dis_trainer = DTrainer(image_real, label_org, label_trg, self.cfg,
                                self.batch_num)
 
+        # print model
+        print(dis_trainer.program)
+        print(gen_trainer.program)
+
         # prepare environment
         place = fluid.CUDAPlace(0) if self.cfg.use_gpu else fluid.CPUPlace()
         exe = fluid.Executor(place)
@@ -357,10 +361,10 @@ class StarGAN(object):
 
                 batch_time = time.time() - s_time
                 t_time += batch_time
-                if batch_id % self.cfg.print_freq == 0:
+                if (batch_id + 1) % self.cfg.print_freq == 0:
                     print("epoch{}: batch{}: \n\
                          d_loss_real: {}; d_loss_fake: {}; d_loss_cls: {}; d_loss_gp: {} \n\
-                         Batch_time_cost: {:.2f}".format(
+                         Batch_time_cost: {:.3f}".format(
                         epoch_id, batch_id, d_loss_real[0], d_loss_fake[
                             0], d_loss_cls[0], d_loss_gp[0], batch_time))
 
